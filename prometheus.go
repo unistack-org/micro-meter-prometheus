@@ -1,6 +1,7 @@
 package prometheus
 
 import (
+	"fmt"
 	"io"
 	"sync"
 	"time"
@@ -185,7 +186,12 @@ func (m *prometheusMeter) SummaryExt(name string, window time.Duration, quantile
 	nm := m.buildMetric(name, labels...)
 	c, ok := m.summary[nm]
 	if !ok {
-		nc := prometheus.NewSummary(prometheus.SummaryOpts{Name: m.buildName(name), ConstLabels: m.mapLabels(labels...)})
+		nc := prometheus.NewSummary(prometheus.SummaryOpts{
+			Name:        m.buildName(name),
+			ConstLabels: m.mapLabels(labels...),
+			MaxAge:      window,
+			Objectives:  map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001},
+		})
 		m.set.MustRegister(nc)
 		c = prometheusSummary{c: nc}
 		m.summary[nm] = c
@@ -213,7 +219,12 @@ func (m *prometheusMeter) Write(w io.Writer, opts ...meter.Option) error {
 		_ = m.set.Register(c)
 	}
 
-	mfs, err := m.set.(prometheus.Gatherer).Gather()
+	g, ok := m.set.(prometheus.Gatherer)
+	if !ok {
+		return fmt.Errorf("set type %T not prometheus.Gatherer", m.set)
+	}
+
+	mfs, err := g.Gather()
 	if err != nil {
 		return err
 	}
@@ -296,16 +307,23 @@ type prometheusFloatCounter struct {
 }
 
 func (c prometheusFloatCounter) Add(n float64) {
+	c.c.Add(n)
 }
 
 func (c prometheusFloatCounter) Get() float64 {
-	return 0
+	m := &dto.Metric{}
+	if err := c.c.Write(m); err != nil {
+		return 0
+	}
+	return m.GetGauge().GetValue()
 }
 
 func (c prometheusFloatCounter) Set(n float64) {
+	c.c.Set(n)
 }
 
 func (c prometheusFloatCounter) Sub(n float64) {
+	c.c.Add(-n)
 }
 
 type prometheusGauge struct {
@@ -313,7 +331,11 @@ type prometheusGauge struct {
 }
 
 func (c prometheusGauge) Get() float64 {
-	return 0
+	m := &dto.Metric{}
+	if err := c.c.Write(m); err != nil {
+		return 0
+	}
+	return float64(m.GetGauge().GetValue())
 }
 
 type prometheusHistogram struct {
@@ -324,9 +346,11 @@ func (c prometheusHistogram) Reset() {
 }
 
 func (c prometheusHistogram) Update(n float64) {
+	c.c.Observe(n)
 }
 
 func (c prometheusHistogram) UpdateDuration(n time.Time) {
+	c.c.Observe(time.Since(n).Seconds())
 }
 
 type prometheusSummary struct {
@@ -334,7 +358,9 @@ type prometheusSummary struct {
 }
 
 func (c prometheusSummary) Update(n float64) {
+	c.c.Observe(n)
 }
 
 func (c prometheusSummary) UpdateDuration(n time.Time) {
+	c.c.Observe(time.Since(n).Seconds())
 }
