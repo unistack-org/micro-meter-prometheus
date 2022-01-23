@@ -103,10 +103,10 @@ func (m *prometheusMeter) Counter(name string, labels ...string) meter.Counter {
 	m.Lock()
 	defer m.Unlock()
 
-	nm := m.buildMetric(name, labels...)
+	nm := m.buildName(name)
 	c, ok := m.counter[nm]
 	if !ok {
-		nc := prometheus.NewGauge(prometheus.GaugeOpts{Name: m.buildName(name), ConstLabels: m.mapLabels(labels...)})
+		nc := prometheus.NewGauge(prometheus.GaugeOpts{Name: nm, ConstLabels: m.mapLabels(labels...)})
 		m.set.MustRegister(nc)
 		c = prometheusCounter{c: nc}
 		m.counter[nm] = c
@@ -119,10 +119,10 @@ func (m *prometheusMeter) FloatCounter(name string, labels ...string) meter.Floa
 	m.Lock()
 	defer m.Unlock()
 
-	nm := m.buildMetric(name, labels...)
+	nm := m.buildName(name)
 	c, ok := m.floatCounter[nm]
 	if !ok {
-		nc := prometheus.NewGauge(prometheus.GaugeOpts{Name: m.buildName(name), ConstLabels: m.mapLabels(labels...)})
+		nc := prometheus.NewGauge(prometheus.GaugeOpts{Name: nm, ConstLabels: m.mapLabels(labels...)})
 		m.set.MustRegister(nc)
 		c = prometheusFloatCounter{c: nc}
 		m.floatCounter[nm] = c
@@ -135,10 +135,10 @@ func (m *prometheusMeter) Gauge(name string, fn func() float64, labels ...string
 	m.Lock()
 	defer m.Unlock()
 
-	nm := m.buildMetric(name, labels...)
+	nm := m.buildName(name)
 	c, ok := m.gauge[nm]
 	if !ok {
-		nc := prometheus.NewGauge(prometheus.GaugeOpts{Name: m.buildName(name), ConstLabels: m.mapLabels(labels...)})
+		nc := prometheus.NewGauge(prometheus.GaugeOpts{Name: nm, ConstLabels: m.mapLabels(labels...)})
 		m.set.MustRegister(nc)
 		c = prometheusGauge{c: nc}
 		m.gauge[nm] = c
@@ -151,10 +151,10 @@ func (m *prometheusMeter) Histogram(name string, labels ...string) meter.Histogr
 	m.Lock()
 	defer m.Unlock()
 
-	nm := m.buildMetric(name, labels...)
+	nm := m.buildName(name)
 	c, ok := m.histogram[nm]
 	if !ok {
-		nc := prometheus.NewHistogram(prometheus.HistogramOpts{Name: m.buildName(name), ConstLabels: m.mapLabels(labels...)})
+		nc := prometheus.NewHistogram(prometheus.HistogramOpts{Name: nm, ConstLabels: m.mapLabels(labels...)})
 		m.set.MustRegister(nc)
 		c = prometheusHistogram{c: nc}
 		m.histogram[nm] = c
@@ -167,10 +167,10 @@ func (m *prometheusMeter) Summary(name string, labels ...string) meter.Summary {
 	m.Lock()
 	defer m.Unlock()
 
-	nm := m.buildMetric(name, labels...)
+	nm := m.buildName(name)
 	c, ok := m.summary[nm]
 	if !ok {
-		nc := prometheus.NewSummary(prometheus.SummaryOpts{Name: m.buildName(name), ConstLabels: m.mapLabels(labels...)})
+		nc := prometheus.NewSummary(prometheus.SummaryOpts{Name: nm, ConstLabels: m.mapLabels(labels...)})
 		m.set.MustRegister(nc)
 		c = prometheusSummary{c: nc}
 		m.summary[nm] = c
@@ -183,11 +183,11 @@ func (m *prometheusMeter) SummaryExt(name string, window time.Duration, quantile
 	m.Lock()
 	defer m.Unlock()
 
-	nm := m.buildMetric(name, labels...)
+	nm := m.buildName(name)
 	c, ok := m.summary[nm]
 	if !ok {
 		nc := prometheus.NewSummary(prometheus.SummaryOpts{
-			Name:        m.buildName(name),
+			Name:        nm,
 			ConstLabels: m.mapLabels(labels...),
 			MaxAge:      window,
 			Objectives:  map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001},
