@@ -50,3 +50,22 @@ func TestWrapper(t *testing.T) {
 		t.Fatalf("invalid metrics output: %s", buf.Bytes())
 	}
 }
+
+func TestMultiple(t *testing.T) {
+	m := NewMeter() // meter.Labels("test_key", "test_val"))
+
+	m.Counter("server", "endpoint", "ep1", "path", "/path1").Inc()
+	m.Counter("server", "endpoint", "ep1", "path", "/path1").Inc()
+
+	m.Counter("server", "endpoint", "ep2", "path", "/path2").Inc()
+	m.Counter("server", "endpoint", "ep2", "path", "/path2").Inc()
+
+	m.Counter("server", "endpoint", "ep3", "path", "/path3", "status", "success").Inc()
+
+	buf := bytes.NewBuffer(nil)
+	_ = m.Write(buf, meter.WriteProcessMetrics(false), meter.WriteFDMetrics(false))
+	if !bytes.Contains(buf.Bytes(), []byte(`micro_server{micro_endpoint="ep1",micro_path="/path1"} 2`)) {
+		// t.Fatal("XXXX")
+		t.Fatalf("invalid metrics output: %s", buf.Bytes())
+	}
+}
