@@ -52,21 +52,6 @@ func newFloat64(v float64) *float64 {
 	return &nv
 }
 
-func newMt(v dto.MetricType) *dto.MetricType {
-	nv := v
-	return &nv
-}
-
-func newInt(v int) *int {
-	nv := v
-	return &nv
-}
-
-func newInt64(v int64) *int64 {
-	nv := v
-	return &nv
-}
-
 func newString(v string) *string {
 	nv := v
 	return &nv
@@ -319,12 +304,8 @@ func (m *prometheusMeter) Write(w io.Writer, opts ...meter.Option) error {
 			Metric: make([]*dto.Metric, 0, len(metrics.cs)),
 		}
 		for _, c := range metrics.cs {
-			m := &dto.Metric{
-				Label: make([]*dto.LabelPair, 0, len(c.labels)/2),
-				Gauge: &dto.Gauge{
-					Value: newFloat64(float64(c.Get())),
-				},
-			}
+			m := &dto.Metric{Label: make([]*dto.LabelPair, 0, len(c.labels)/2)}
+			c.c.Write(m)
 			for idx := 0; idx < len(c.labels); idx++ {
 				m.Label = append(m.Label, &dto.LabelPair{
 					Name:  &c.labels[idx],
@@ -344,12 +325,71 @@ func (m *prometheusMeter) Write(w io.Writer, opts ...meter.Option) error {
 			Metric: make([]*dto.Metric, 0, len(metrics.cs)),
 		}
 		for _, c := range metrics.cs {
-			m := &dto.Metric{
-				Label: make([]*dto.LabelPair, 0, len(c.labels)/2),
-				Gauge: &dto.Gauge{
-					Value: newFloat64(float64(c.Get())),
-				},
+			m := &dto.Metric{Label: make([]*dto.LabelPair, 0, len(c.labels)/2)}
+			c.c.Write(m)
+			for idx := 0; idx < len(c.labels); idx++ {
+				m.Label = append(m.Label, &dto.LabelPair{
+					Name:  &c.labels[idx],
+					Value: &c.labels[idx+1],
+				})
+				idx++
 			}
+			mf.Metric = append(mf.Metric, m)
+		}
+		mfs = append(mfs, mf)
+	}
+
+	for name, metrics := range m.floatCounter {
+		mf := &dto.MetricFamily{
+			Name:   newString(name),
+			Type:   dto.MetricType_GAUGE.Enum(),
+			Metric: make([]*dto.Metric, 0, len(metrics.cs)),
+		}
+		for _, c := range metrics.cs {
+			m := &dto.Metric{Label: make([]*dto.LabelPair, 0, len(c.labels)/2)}
+			c.c.Write(m)
+			for idx := 0; idx < len(c.labels); idx++ {
+				m.Label = append(m.Label, &dto.LabelPair{
+					Name:  &c.labels[idx],
+					Value: &c.labels[idx+1],
+				})
+				idx++
+			}
+			mf.Metric = append(mf.Metric, m)
+		}
+		mfs = append(mfs, mf)
+	}
+
+	for name, metrics := range m.histogram {
+		mf := &dto.MetricFamily{
+			Name:   newString(name),
+			Type:   dto.MetricType_HISTOGRAM.Enum(),
+			Metric: make([]*dto.Metric, 0, len(metrics.cs)),
+		}
+		for _, c := range metrics.cs {
+			m := &dto.Metric{Label: make([]*dto.LabelPair, 0, len(c.labels)/2)}
+			c.c.Write(m)
+			for idx := 0; idx < len(c.labels); idx++ {
+				m.Label = append(m.Label, &dto.LabelPair{
+					Name:  &c.labels[idx],
+					Value: &c.labels[idx+1],
+				})
+				idx++
+			}
+			mf.Metric = append(mf.Metric, m)
+		}
+		mfs = append(mfs, mf)
+	}
+
+	for name, metrics := range m.summary {
+		mf := &dto.MetricFamily{
+			Name:   newString(name),
+			Type:   dto.MetricType_SUMMARY.Enum(),
+			Metric: make([]*dto.Metric, 0, len(metrics.cs)),
+		}
+		for _, c := range metrics.cs {
+			m := &dto.Metric{Label: make([]*dto.LabelPair, 0, len(c.labels)/2)}
+			c.c.Write(m)
 			for idx := 0; idx < len(c.labels); idx++ {
 				m.Label = append(m.Label, &dto.LabelPair{
 					Name:  &c.labels[idx],
