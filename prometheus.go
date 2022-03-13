@@ -302,8 +302,9 @@ func (m *prometheusMeter) Write(w io.Writer, opts ...meter.Option) error {
 			Metric: make([]*dto.Metric, 0, len(metrics.cs)),
 		}
 		for _, c := range metrics.cs {
-			m := newMetric(c.labels)
+			m := &dto.Metric{}
 			_ = c.c.Write(m)
+			fillMetric(m, c.labels)
 			mf.Metric = append(mf.Metric, m)
 		}
 		mfs = append(mfs, mf)
@@ -316,8 +317,9 @@ func (m *prometheusMeter) Write(w io.Writer, opts ...meter.Option) error {
 			Metric: make([]*dto.Metric, 0, len(metrics.cs)),
 		}
 		for _, c := range metrics.cs {
-			m := newMetric(c.labels)
+			m := &dto.Metric{}
 			_ = c.c.Write(m)
+			fillMetric(m, c.labels)
 			mf.Metric = append(mf.Metric, m)
 		}
 		mfs = append(mfs, mf)
@@ -330,8 +332,9 @@ func (m *prometheusMeter) Write(w io.Writer, opts ...meter.Option) error {
 			Metric: make([]*dto.Metric, 0, len(metrics.cs)),
 		}
 		for _, c := range metrics.cs {
-			m := newMetric(c.labels)
+			m := &dto.Metric{}
 			_ = c.c.Write(m)
+			fillMetric(m, c.labels)
 			mf.Metric = append(mf.Metric, m)
 		}
 		mfs = append(mfs, mf)
@@ -344,8 +347,9 @@ func (m *prometheusMeter) Write(w io.Writer, opts ...meter.Option) error {
 			Metric: make([]*dto.Metric, 0, len(metrics.cs)),
 		}
 		for _, c := range metrics.cs {
-			m := newMetric(c.labels)
+			m := &dto.Metric{}
 			_ = c.c.Write(m)
+			fillMetric(m, c.labels)
 			mf.Metric = append(mf.Metric, m)
 		}
 		mfs = append(mfs, mf)
@@ -358,8 +362,9 @@ func (m *prometheusMeter) Write(w io.Writer, opts ...meter.Option) error {
 			Metric: make([]*dto.Metric, 0, len(metrics.cs)),
 		}
 		for _, c := range metrics.cs {
-			m := newMetric(c.labels)
+			m := &dto.Metric{}
 			_ = c.c.Write(m)
+			fillMetric(m, c.labels)
 			mf.Metric = append(mf.Metric, m)
 		}
 		mfs = append(mfs, mf)
@@ -514,12 +519,12 @@ func newHash(labels []string) uint64 {
 	return h.Sum64()
 }
 
-func newMetric(labels []string) *dto.Metric {
-	m := &dto.Metric{Label: make([]*dto.LabelPair, 0, len(labels)/2)}
+func fillMetric(m *dto.Metric, labels []string) *dto.Metric {
+	m.Label = make([]*dto.LabelPair, 0, len(labels)/2)
 	for idx := 0; idx < len(labels); idx += 2 {
 		m.Label = append(m.Label, &dto.LabelPair{
-			Name:  &labels[idx],
-			Value: &labels[idx+1],
+			Name:  newString(labels[idx]),
+			Value: newString(labels[idx+1]),
 		})
 	}
 	return m
