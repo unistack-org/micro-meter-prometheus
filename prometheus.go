@@ -87,9 +87,8 @@ func (m *prometheusMeter) buildMetric(name string, labels ...string) string {
 		return meter.BuildName(name, nlabels...)
 	}
 
-	for idx := 0; idx < nl; idx++ {
+	for idx := 0; idx < nl; idx += 2 {
 		nlabels[idx] = m.opts.LabelPrefix + nlabels[idx]
-		idx++
 	}
 	return meter.BuildName(name, nlabels...)
 }
@@ -109,10 +108,9 @@ func (m *prometheusMeter) buildLabels(labels ...string) []string {
 
 	nlabels := make([]string, 0, nl)
 
-	for idx := 0; idx < nl; idx++ {
+	for idx := 0; idx < nl; idx += 2 {
 		nlabels = append(nlabels, m.opts.LabelPrefix+labels[idx])
 		nlabels = append(nlabels, labels[idx+1])
-		idx++
 	}
 	return nlabels
 }
@@ -304,15 +302,9 @@ func (m *prometheusMeter) Write(w io.Writer, opts ...meter.Option) error {
 			Metric: make([]*dto.Metric, 0, len(metrics.cs)),
 		}
 		for _, c := range metrics.cs {
-			m := &dto.Metric{Label: make([]*dto.LabelPair, 0, len(c.labels)/2)}
-			c.c.Write(m)
-			for idx := 0; idx < len(c.labels); idx++ {
-				m.Label = append(m.Label, &dto.LabelPair{
-					Name:  &c.labels[idx],
-					Value: &c.labels[idx+1],
-				})
-				idx++
-			}
+			m := &dto.Metric{}
+			_ = c.c.Write(m)
+			fillMetric(m, c.labels)
 			mf.Metric = append(mf.Metric, m)
 		}
 		mfs = append(mfs, mf)
@@ -325,15 +317,9 @@ func (m *prometheusMeter) Write(w io.Writer, opts ...meter.Option) error {
 			Metric: make([]*dto.Metric, 0, len(metrics.cs)),
 		}
 		for _, c := range metrics.cs {
-			m := &dto.Metric{Label: make([]*dto.LabelPair, 0, len(c.labels)/2)}
-			c.c.Write(m)
-			for idx := 0; idx < len(c.labels); idx++ {
-				m.Label = append(m.Label, &dto.LabelPair{
-					Name:  &c.labels[idx],
-					Value: &c.labels[idx+1],
-				})
-				idx++
-			}
+			m := &dto.Metric{}
+			_ = c.c.Write(m)
+			fillMetric(m, c.labels)
 			mf.Metric = append(mf.Metric, m)
 		}
 		mfs = append(mfs, mf)
@@ -346,15 +332,9 @@ func (m *prometheusMeter) Write(w io.Writer, opts ...meter.Option) error {
 			Metric: make([]*dto.Metric, 0, len(metrics.cs)),
 		}
 		for _, c := range metrics.cs {
-			m := &dto.Metric{Label: make([]*dto.LabelPair, 0, len(c.labels)/2)}
-			c.c.Write(m)
-			for idx := 0; idx < len(c.labels); idx++ {
-				m.Label = append(m.Label, &dto.LabelPair{
-					Name:  &c.labels[idx],
-					Value: &c.labels[idx+1],
-				})
-				idx++
-			}
+			m := &dto.Metric{}
+			_ = c.c.Write(m)
+			fillMetric(m, c.labels)
 			mf.Metric = append(mf.Metric, m)
 		}
 		mfs = append(mfs, mf)
@@ -367,15 +347,9 @@ func (m *prometheusMeter) Write(w io.Writer, opts ...meter.Option) error {
 			Metric: make([]*dto.Metric, 0, len(metrics.cs)),
 		}
 		for _, c := range metrics.cs {
-			m := &dto.Metric{Label: make([]*dto.LabelPair, 0, len(c.labels)/2)}
-			c.c.Write(m)
-			for idx := 0; idx < len(c.labels); idx++ {
-				m.Label = append(m.Label, &dto.LabelPair{
-					Name:  &c.labels[idx],
-					Value: &c.labels[idx+1],
-				})
-				idx++
-			}
+			m := &dto.Metric{}
+			_ = c.c.Write(m)
+			fillMetric(m, c.labels)
 			mf.Metric = append(mf.Metric, m)
 		}
 		mfs = append(mfs, mf)
@@ -388,15 +362,9 @@ func (m *prometheusMeter) Write(w io.Writer, opts ...meter.Option) error {
 			Metric: make([]*dto.Metric, 0, len(metrics.cs)),
 		}
 		for _, c := range metrics.cs {
-			m := &dto.Metric{Label: make([]*dto.LabelPair, 0, len(c.labels)/2)}
-			c.c.Write(m)
-			for idx := 0; idx < len(c.labels); idx++ {
-				m.Label = append(m.Label, &dto.LabelPair{
-					Name:  &c.labels[idx],
-					Value: &c.labels[idx+1],
-				})
-				idx++
-			}
+			m := &dto.Metric{}
+			_ = c.c.Write(m)
+			fillMetric(m, c.labels)
 			mf.Metric = append(mf.Metric, m)
 		}
 		mfs = append(mfs, mf)
@@ -549,4 +517,15 @@ func newHash(labels []string) uint64 {
 		h.Write([]byte(l))
 	}
 	return h.Sum64()
+}
+
+func fillMetric(m *dto.Metric, labels []string) *dto.Metric {
+	m.Label = make([]*dto.LabelPair, 0, len(labels)/2)
+	for idx := 0; idx < len(labels); idx += 2 {
+		m.Label = append(m.Label, &dto.LabelPair{
+			Name:  newString(labels[idx]),
+			Value: newString(labels[idx+1]),
+		})
+	}
+	return m
 }
