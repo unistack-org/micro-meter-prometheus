@@ -6,5 +6,5 @@ require (
 	github.com/prometheus/client_golang v1.12.2
 	github.com/prometheus/client_model v0.2.0
 	github.com/prometheus/common v0.35.0
-	go.unistack.org/micro/v3 v3.9.10
+	go.unistack.org/micro/v3 v3.9.11
 )
