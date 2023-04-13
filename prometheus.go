@@ -388,12 +388,13 @@ func (m *prometheusMeter) Clone(opts ...meter.Option) meter.Meter {
 	}
 
 	return &prometheusMeter{
-		set:       m.set,
-		opts:      options,
-		counter:   m.counter,
-		gauge:     m.gauge,
-		histogram: m.histogram,
-		summary:   m.summary,
+		set:          m.set,
+		opts:         options,
+		floatCounter: m.floatCounter,
+		counter:      m.counter,
+		gauge:        m.gauge,
+		histogram:    m.histogram,
+		summary:      m.summary,
 	}
 }
 
