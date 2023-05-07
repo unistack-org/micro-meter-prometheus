@@ -13,9 +13,8 @@ import (
 
 func TestBuildName(t *testing.T) {
 	m := NewMeter()
-	im := m.(*prometheusMeter)
 	check := `micro_foo{micro_aaa="b",micro_bar="baz",micro_ccc="d"}`
-	name := im.buildMetric("foo", "bar", "baz", "aaa", "b", "ccc", "d")
+	name := m.buildMetric("foo", "bar", "baz", "aaa", "b", "ccc", "d")
 	if name != check {
 		t.Fatalf("metric name error: %s != %s", name, check)
 	}
