@@ -11,7 +11,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
-	"go.unistack.org/micro/v3/meter"
+	"go.unistack.org/micro/v4/meter"
 )
 
 var _ meter.Meter = &prometheusMeter{}
