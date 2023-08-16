@@ -12,6 +12,7 @@ import (
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 	"go.unistack.org/micro/v4/meter"
+	"go.unistack.org/micro/v4/options"
 )
 
 var _ meter.Meter = &prometheusMeter{}
@@ -57,7 +58,7 @@ func newString(v string) *string {
 	return &nv
 }
 
-func NewMeter(opts ...meter.Option) *prometheusMeter {
+func NewMeter(opts ...options.Option) *prometheusMeter {
 	return &prometheusMeter{
 		set:          prometheus.NewRegistry(), // prometheus.DefaultRegisterer,
 		opts:         meter.NewOptions(opts...),
@@ -265,14 +266,14 @@ func (m *prometheusMeter) SummaryExt(name string, window time.Duration, quantile
 	return c
 }
 
-func (m *prometheusMeter) Init(opts ...meter.Option) error {
+func (m *prometheusMeter) Init(opts ...options.Option) error {
 	for _, o := range opts {
 		o(&m.opts)
 	}
 	return nil
 }
 
-func (m *prometheusMeter) Write(w io.Writer, opts ...meter.Option) error {
+func (m *prometheusMeter) Write(w io.Writer, opts ...options.Option) error {
 	options := m.opts
 	for _, o := range opts {
 		o(&options)
@@ -381,7 +382,7 @@ func (m *prometheusMeter) Write(w io.Writer, opts ...meter.Option) error {
 	return nil
 }
 
-func (m *prometheusMeter) Clone(opts ...meter.Option) meter.Meter {
+func (m *prometheusMeter) Clone(opts ...options.Option) meter.Meter {
 	options := m.opts
 	for _, o := range opts {
 		o(&options)
@@ -406,7 +407,7 @@ func (m *prometheusMeter) String() string {
 	return "prometheus"
 }
 
-func (m *prometheusMeter) Set(opts ...meter.Option) meter.Meter {
+func (m *prometheusMeter) Set(opts ...options.Option) meter.Meter {
 	nm := &prometheusMeter{opts: m.opts}
 	for _, o := range opts {
 		o(&nm.opts)
