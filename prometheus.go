@@ -294,7 +294,7 @@ func (m *prometheusMeter) Write(w io.Writer, opts ...options.Option) error {
 		return err
 	}
 
-	enc := expfmt.NewEncoder(w, expfmt.FmtText)
+	enc := expfmt.NewEncoder(w, expfmt.NewFormat(expfmt.TypeTextPlain))
 
 	for name, metrics := range m.counter {
 		mf := &dto.MetricFamily{

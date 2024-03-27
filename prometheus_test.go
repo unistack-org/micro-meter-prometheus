@@ -32,10 +32,10 @@ func TestWrapper(t *testing.T) {
 		wrapper.ServiceID("12345"),
 		wrapper.Meter(m),
 	)
-
+	_ = w
 	ctx := context.Background()
 
-	c := client.NewClient(client.Wrap(w))
+	c := client.NewClient()
 	if err := c.Init(); err != nil {
 		t.Fatal(err)
 	}
