@@ -293,7 +293,7 @@ func (m *prometheusMeter) Write(w io.Writer, opts ...meter.Option) error {
 		return err
 	}
 
-	enc := expfmt.NewEncoder(w, expfmt.FmtText)
+	enc := expfmt.NewEncoder(w, expfmt.NewFormat(expfmt.TypeTextPlain))
 
 	for name, metrics := range m.counter {
 		mf := &dto.MetricFamily{
@@ -521,12 +521,18 @@ func newHash(labels []string) uint64 {
 }
 
 func fillMetric(m *dto.Metric, labels []string) *dto.Metric {
+	var ok bool
+	seen := make(map[string]bool, len(labels)/2)
 	m.Label = make([]*dto.LabelPair, 0, len(labels)/2)
 	for idx := 0; idx < len(labels); idx += 2 {
+		if _, ok = seen[labels[idx]]; ok {
+			continue
+		}
 		m.Label = append(m.Label, &dto.LabelPair{
 			Name:  newString(labels[idx]),
 			Value: newString(labels[idx+1]),
 		})
+		seen[labels[idx]] = true
 	}
 	return m
 }
