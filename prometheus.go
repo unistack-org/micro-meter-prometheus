@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"hash/fnv"
 	"io"
+	"regexp"
 	"sync"
 	"time"
 
@@ -279,8 +280,10 @@ func (m *prometheusMeter) Write(w io.Writer, opts ...meter.Option) error {
 	}
 
 	if options.WriteProcessMetrics || options.WriteFDMetrics {
-		c := collectors.NewProcessCollector(collectors.ProcessCollectorOpts{})
-		_ = m.set.Register(c)
+		pc := collectors.NewProcessCollector(collectors.ProcessCollectorOpts{})
+		_ = m.set.Register(pc)
+		gc := collectors.NewGoCollector(collectors.WithGoCollectorRuntimeMetrics(collectors.GoRuntimeMetricsRule{Matcher: regexp.MustCompile("/.*")}))
+		_ = m.set.Register(gc)
 	}
 
 	g, ok := m.set.(prometheus.Gatherer)
