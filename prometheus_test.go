@@ -11,6 +11,18 @@ import (
 	"go.unistack.org/micro/v4/meter/wrapper"
 )
 
+func TestStd(t *testing.T) {
+	m := NewMeter(meter.WriteProcessMetrics(true), meter.WriteFDMetrics(true))
+	if err := m.Init(); err != nil {
+		t.Fatal(err)
+	}
+	buf := bytes.NewBuffer(nil)
+	_ = m.Write(buf)
+	if !bytes.Contains(buf.Bytes(), []byte(`go_goroutine`)) {
+		t.Fatalf("invalid metrics output: %s", buf.Bytes())
+	}
+}
+
 func TestBuildName(t *testing.T) {
 	m := NewMeter()
 	check := `micro_foo{micro_aaa="b",micro_bar="baz",micro_ccc="d"}`
