@@ -359,7 +359,7 @@ func (m *prometheusMeter) Write(w io.Writer, opts ...meter.Option) error {
 			Type: dto.MetricType_GAUGE.Enum(),
 		}
 		v.(*floatCounters).cs.Range(func(_, nv any) bool {
-			c := nv.(*prometheusGauge)
+			c := nv.(*prometheusFloatCounter)
 			m := &dto.Metric{}
 			_ = c.c.Write(m)
 			fillMetric(m, c.labels)
