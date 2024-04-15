@@ -288,6 +288,14 @@ func (m *prometheusMeter) Init(opts ...meter.Option) error {
 	for _, o := range opts {
 		o(&m.opts)
 	}
+
+	if m.opts.WriteProcessMetrics || m.opts.WriteFDMetrics {
+		pc := collectors.NewProcessCollector(collectors.ProcessCollectorOpts{})
+		_ = m.set.Register(pc)
+		gc := collectors.NewGoCollector(collectors.WithGoCollectorRuntimeMetrics(collectors.GoRuntimeMetricsRule{Matcher: regexp.MustCompile("/.*")}))
+		_ = m.set.Register(gc)
+	}
+
 	return nil
 }
 
@@ -295,13 +303,6 @@ func (m *prometheusMeter) Write(w io.Writer, opts ...meter.Option) error {
 	options := m.opts
 	for _, o := range opts {
 		o(&options)
-	}
-
-	if options.WriteProcessMetrics || options.WriteFDMetrics {
-		pc := collectors.NewProcessCollector(collectors.ProcessCollectorOpts{})
-		_ = m.set.Register(pc)
-		gc := collectors.NewGoCollector(collectors.WithGoCollectorRuntimeMetrics(collectors.GoRuntimeMetricsRule{Matcher: regexp.MustCompile("/.*")}))
-		_ = m.set.Register(gc)
 	}
 
 	g, ok := m.set.(prometheus.Gatherer)
