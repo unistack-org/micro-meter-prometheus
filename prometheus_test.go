@@ -3,12 +3,101 @@ package prometheus
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"testing"
 
+	"github.com/prometheus/client_golang/prometheus"
+	dto "github.com/prometheus/client_model/go"
+	"github.com/prometheus/common/expfmt"
 	"go.unistack.org/micro/v3/client"
 	"go.unistack.org/micro/v3/codec"
 	"go.unistack.org/micro/v3/meter"
 )
+
+func TestHistogram(t *testing.T) {
+	m := NewMeter()
+	name := "test"
+	m.Histogram(name, "endpoint").Update(1)
+	m.Histogram(name, "endpoint").Update(1)
+	m.Histogram(name, "endpoint").Update(5)
+	m.Histogram(name, "endpoint").Update(10)
+	m.Histogram(name, "endpoint").Update(10)
+	m.Histogram(name, "endpoint").Update(30)
+	mbuf := bytes.NewBuffer(nil)
+	_ = m.Write(mbuf, meter.WriteProcessMetrics(false), meter.WriteFDMetrics(false))
+
+	/*
+		if !bytes.Contains(buf.Bytes(), []byte(`micro_server_sum{endpoint="ep1",path="/path1"} 20`)) {
+			t.Fatalf("invalid metrics output: %s", buf.Bytes())
+		}
+
+		if !bytes.Contains(buf.Bytes(), []byte(`micro_server_count{endpoint="ep1",path="/path1"} 2`)) {
+			t.Fatalf("invalid metrics output: %s", buf.Bytes())
+		}
+	*/
+	p := prometheus.NewHistogram(prometheus.HistogramOpts{Name: name})
+	p.Observe(1)
+	p.Observe(1)
+	p.Observe(5)
+	p.Observe(10)
+	p.Observe(10)
+	p.Observe(30)
+	mdto := &dto.Metric{}
+	p.Write(mdto)
+	pbuf := bytes.NewBuffer(nil)
+	enc := expfmt.NewEncoder(pbuf, expfmt.NewFormat(expfmt.TypeTextPlain))
+	mf := &dto.MetricFamily{Name: &name, Type: dto.MetricType_HISTOGRAM.Enum(), Metric: []*dto.Metric{mdto}}
+	_ = enc.Encode(mf)
+
+	if !bytes.Equal(mbuf.Bytes(), pbuf.Bytes()) {
+		fmt.Printf("m\n%s\n", mbuf.Bytes())
+		fmt.Printf("m\n%s\n", pbuf.Bytes())
+	}
+}
+
+func TestSummary(t *testing.T) {
+	name := "micro_server"
+	m := NewMeter()
+	m.Summary("micro_server").Update(1)
+	m.Summary("micro_server").Update(1)
+	m.Summary("micro_server").Update(5)
+	m.Summary("micro_server").Update(10)
+	m.Summary("micro_server").Update(10)
+	m.Summary("micro_server").Update(30)
+	mbuf := bytes.NewBuffer(nil)
+	_ = m.Write(mbuf, meter.WriteProcessMetrics(false), meter.WriteFDMetrics(false))
+
+	if !bytes.Contains(mbuf.Bytes(), []byte(`micro_server_sum 57`)) {
+		t.Fatalf("invalid metrics output: %s", mbuf.Bytes())
+	}
+
+	if !bytes.Contains(mbuf.Bytes(), []byte(`micro_server_count 6`)) {
+		t.Fatalf("invalid metrics output: %s", mbuf.Bytes())
+	}
+
+	objectives := make(map[float64]float64)
+	for _, c := range meter.DefaultSummaryQuantiles {
+		objectives[c] = c
+	}
+	p := prometheus.NewSummary(prometheus.SummaryOpts{Name: name, Objectives: objectives, MaxAge: meter.DefaultSummaryWindow})
+	p.Observe(1)
+	p.Observe(1)
+	p.Observe(5)
+	p.Observe(10)
+	p.Observe(10)
+	p.Observe(30)
+	mdto := &dto.Metric{}
+	p.Write(mdto)
+	pbuf := bytes.NewBuffer(nil)
+	enc := expfmt.NewEncoder(pbuf, expfmt.NewFormat(expfmt.TypeTextPlain))
+	mf := &dto.MetricFamily{Name: &name, Type: dto.MetricType_SUMMARY.Enum(), Metric: []*dto.Metric{mdto}}
+	_ = enc.Encode(mf)
+
+	if !bytes.Equal(mbuf.Bytes(), pbuf.Bytes()) {
+		fmt.Printf("m\n%s\n", mbuf.Bytes())
+		fmt.Printf("m\n%s\n", pbuf.Bytes())
+	}
+}
 
 func TestStd(t *testing.T) {
 	m := NewMeter(meter.WriteProcessMetrics(true), meter.WriteFDMetrics(true))
@@ -56,7 +145,9 @@ func TestMultiple(t *testing.T) {
 	buf := bytes.NewBuffer(nil)
 	_ = m.Write(buf, meter.WriteProcessMetrics(false), meter.WriteFDMetrics(false))
 	if !bytes.Contains(buf.Bytes(), []byte(`micro_server{endpoint="ep1",path="/path1"} 2`)) {
-		// t.Fatal("XXXX")
+		t.Fatalf("invalid metrics output: %s", buf.Bytes())
+	}
+	if !bytes.Contains(buf.Bytes(), []byte(`micro_server{endpoint="ep3",path="/path3",status="success"} 1`)) {
 		t.Fatalf("invalid metrics output: %s", buf.Bytes())
 	}
 }

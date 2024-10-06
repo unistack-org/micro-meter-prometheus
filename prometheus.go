@@ -2,7 +2,6 @@ package prometheus
 
 import (
 	"fmt"
-	"hash/fnv"
 	"io"
 	"regexp"
 	"sync"
@@ -13,6 +12,8 @@ import (
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 	"go.unistack.org/micro/v3/meter"
+	xpool "go.unistack.org/micro/v3/util/xpool"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 var _ meter.Meter = (*prometheusMeter)(nil)
@@ -25,27 +26,7 @@ type prometheusMeter struct {
 	gauge        *sync.Map
 	histogram    *sync.Map
 	summary      *sync.Map
-	sync.Mutex
-}
-
-type counters struct {
-	cs *sync.Map
-}
-
-type gauges struct {
-	cs *sync.Map
-}
-
-type histograms struct {
-	cs *sync.Map
-}
-
-type summaries struct {
-	cs *sync.Map
-}
-
-type floatCounters struct {
-	cs *sync.Map
+	mfPool       xpool.Pool[*dto.MetricFamily]
 }
 
 func NewMeter(opts ...meter.Option) *prometheusMeter {
@@ -57,6 +38,9 @@ func NewMeter(opts ...meter.Option) *prometheusMeter {
 		gauge:        &sync.Map{},
 		histogram:    &sync.Map{},
 		summary:      &sync.Map{},
+		mfPool: xpool.NewPool[*dto.MetricFamily](func() *dto.MetricFamily {
+			return &dto.MetricFamily{}
+		}),
 	}
 }
 
@@ -65,161 +49,134 @@ func (m *prometheusMeter) Name() string {
 }
 
 func (m *prometheusMeter) Counter(name string, labels ...string) meter.Counter {
-	m.Lock()
-	defer m.Unlock()
-	labels = append(m.opts.Labels, labels...)
-	vcd, ok := m.counter.Load(name)
-	h := newHash(labels)
+	clabels := meter.BuildLabels(append(m.opts.Labels, labels...)...)
+	h := newHash(name, clabels)
+	mc, ok := m.counter.Load(h)
 	if !ok {
-		cd := &counters{cs: &sync.Map{}}
-		c := &prometheusCounter{c: prometheus.NewGauge(prometheus.GaugeOpts{Name: name}), labels: labels}
-		cd.cs.Store(h, c)
-		m.counter.Store(name, cd)
-		return c
+		var v float64
+		mc = &prometheusCounter{
+			name: name,
+			c: &dto.Metric{
+				Gauge: &dto.Gauge{Value: &v},
+				Label: labelMetric(clabels),
+			},
+		}
+		m.counter.Store(h, mc)
 	}
-	cd := vcd.(*counters)
-	vc, ok := cd.cs.Load(h)
-	if !ok {
-		c := &prometheusCounter{c: prometheus.NewGauge(prometheus.GaugeOpts{Name: name}), labels: labels}
-		cd.cs.Store(h, c)
-		m.counter.Store(name, cd)
-		return c
-	}
-	c := vc.(*prometheusCounter)
-	return c
+	return mc.(*prometheusCounter)
 }
 
 func (m *prometheusMeter) FloatCounter(name string, labels ...string) meter.FloatCounter {
-	m.Lock()
-	defer m.Unlock()
-	labels = append(m.opts.Labels, labels...)
-	vcd, ok := m.floatCounter.Load(name)
-	h := newHash(labels)
+	clabels := meter.BuildLabels(append(m.opts.Labels, labels...)...)
+	h := newHash(name, clabels)
+	mc, ok := m.floatCounter.Load(h)
 	if !ok {
-		cd := &floatCounters{cs: &sync.Map{}}
-		c := &prometheusFloatCounter{c: prometheus.NewGauge(prometheus.GaugeOpts{Name: name}), labels: labels}
-		cd.cs.Store(h, c)
-		m.floatCounter.Store(name, cd)
-		return c
+		var v float64
+		mc = &prometheusFloatCounter{
+			name: name,
+			c: &dto.Metric{
+				Gauge: &dto.Gauge{Value: &v},
+				Label: labelMetric(clabels),
+			},
+		}
+		m.floatCounter.Store(h, mc)
 	}
-	cd := vcd.(*floatCounters)
-	vc, ok := cd.cs.Load(h)
-	if !ok {
-		c := &prometheusFloatCounter{c: prometheus.NewGauge(prometheus.GaugeOpts{Name: name}), labels: labels}
-		cd.cs.Store(h, c)
-		m.floatCounter.Store(name, cd)
-		return c
-	}
-	c := vc.(*prometheusFloatCounter)
-	return c
+	return mc.(*prometheusFloatCounter)
 }
 
 func (m *prometheusMeter) Gauge(name string, fn func() float64, labels ...string) meter.Gauge {
-	m.Lock()
-	defer m.Unlock()
-	labels = append(m.opts.Labels, labels...)
-	vcd, ok := m.gauge.Load(name)
-	h := newHash(labels)
+	clabels := meter.BuildLabels(append(m.opts.Labels, labels...)...)
+	h := newHash(name, clabels)
+	mc, ok := m.gauge.Load(h)
 	if !ok {
-		cd := &gauges{cs: &sync.Map{}}
-		c := &prometheusGauge{c: prometheus.NewGauge(prometheus.GaugeOpts{Name: name}), labels: labels}
-		cd.cs.Store(h, c)
-		m.gauge.Store(name, cd)
-		return c
+		var v float64
+		mc = &prometheusGauge{
+			name: name,
+			c: &dto.Metric{
+				Gauge: &dto.Gauge{Value: &v},
+				Label: labelMetric(clabels),
+			},
+		}
+		m.gauge.Store(h, mc)
 	}
-	cd := vcd.(*gauges)
-	vc, ok := cd.cs.Load(h)
-	if !ok {
-		c := &prometheusGauge{c: prometheus.NewGauge(prometheus.GaugeOpts{Name: name}), labels: labels}
-		cd.cs.Store(h, c)
-		m.gauge.Store(name, cd)
-		return c
-	}
-	c := vc.(*prometheusGauge)
-	return c
+	return mc.(*prometheusGauge)
 }
 
 func (m *prometheusMeter) Histogram(name string, labels ...string) meter.Histogram {
-	m.Lock()
-	defer m.Unlock()
-	labels = append(m.opts.Labels, labels...)
-	vcd, ok := m.histogram.Load(name)
-	h := newHash(labels)
+	clabels := meter.BuildLabels(append(m.opts.Labels, labels...)...)
+	h := newHash(name, clabels)
+	mc, ok := m.histogram.Load(h)
 	if !ok {
-		cd := &histograms{cs: &sync.Map{}}
-		c := &prometheusHistogram{c: prometheus.NewHistogram(prometheus.HistogramOpts{Name: name}), labels: labels}
-		cd.cs.Store(h, c)
-		m.histogram.Store(name, cd)
-		return c
+		var c uint64
+		var s float64
+		buckets := make([]float64, len(prometheus.DefBuckets))
+		copy(buckets, prometheus.DefBuckets)
+		mdto := &dto.Metric{
+			Histogram: &dto.Histogram{
+				SampleCount:      &c,
+				SampleSum:        &s,
+				CreatedTimestamp: timestamppb.Now(),
+				Bucket:           make([]*dto.Bucket, len(buckets)),
+			},
+			Label: labelMetric(clabels),
+		}
+		for idx, b := range buckets {
+			var cc uint64
+			mdto.Histogram.Bucket[idx] = &dto.Bucket{CumulativeCount: &cc, UpperBound: &b}
+		}
+		mc = &prometheusHistogram{
+			name: name,
+			c:    mdto,
+		}
+
+		m.histogram.Store(h, mc)
 	}
-	cd := vcd.(*histograms)
-	vc, ok := cd.cs.Load(h)
-	if !ok {
-		c := &prometheusHistogram{c: prometheus.NewHistogram(prometheus.HistogramOpts{Name: name}), labels: labels}
-		cd.cs.Store(h, c)
-		m.histogram.Store(name, cd)
-		return c
-	}
-	c := vc.(*prometheusHistogram)
-	return c
+	return mc.(*prometheusHistogram)
 }
 
 func (m *prometheusMeter) Summary(name string, labels ...string) meter.Summary {
-	m.Lock()
-	defer m.Unlock()
-	labels = append(m.opts.Labels, labels...)
-	vcd, ok := m.summary.Load(name)
-	h := newHash(labels)
+	clabels := meter.BuildLabels(append(m.opts.Labels, labels...)...)
+	h := newHash(name, clabels)
+	mc, ok := m.summary.Load(h)
 	if !ok {
-		cd := &summaries{cs: &sync.Map{}}
-		c := &prometheusSummary{c: prometheus.NewSummary(prometheus.SummaryOpts{Name: name}), labels: labels}
-		cd.cs.Store(h, c)
-		m.summary.Store(name, cd)
-		return c
+		var c uint64
+		var s float64
+		mc = &prometheusSummary{
+			name: name,
+			c: &dto.Metric{
+				Summary: &dto.Summary{
+					SampleCount:      &c,
+					SampleSum:        &s,
+					CreatedTimestamp: timestamppb.Now(),
+				},
+				Label: labelMetric(clabels),
+			},
+		}
+		m.summary.Store(h, mc)
 	}
-	cd := vcd.(*summaries)
-	vc, ok := cd.cs.Load(h)
-	if !ok {
-		c := &prometheusSummary{c: prometheus.NewSummary(prometheus.SummaryOpts{Name: name}), labels: labels}
-		cd.cs.Store(h, c)
-		m.summary.Store(name, cd)
-		return c
-	}
-	c := vc.(*prometheusSummary)
-	return c
+	return mc.(*prometheusSummary)
 }
 
 func (m *prometheusMeter) SummaryExt(name string, window time.Duration, quantiles []float64, labels ...string) meter.Summary {
-	m.Lock()
-	defer m.Unlock()
-	labels = append(m.opts.Labels, labels...)
-	vcd, ok := m.summary.Load(name)
-	h := newHash(labels)
+	clabels := meter.BuildLabels(append(m.opts.Labels, labels...)...)
+	h := newHash(name, clabels)
+	mc, ok := m.summary.Load(h)
 	if !ok {
-		cd := &summaries{cs: &sync.Map{}}
-		c := &prometheusSummary{c: prometheus.NewSummary(prometheus.SummaryOpts{
-			Name:       name,
-			MaxAge:     window,
-			Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001},
-		}), labels: labels}
-		cd.cs.Store(h, c)
-		m.summary.Store(name, cd)
-		return c
+		var c uint64
+		var s float64
+		mc = &prometheusSummary{
+			name: name,
+			c: &dto.Metric{
+				Summary: &dto.Summary{
+					SampleCount: &c,
+					SampleSum:   &s,
+				},
+				Label: labelMetric(clabels),
+			},
+		}
+		m.summary.Store(h, mc)
 	}
-	cd := vcd.(*summaries)
-	vc, ok := cd.cs.Load(h)
-	if !ok {
-		c := &prometheusSummary{c: prometheus.NewSummary(prometheus.SummaryOpts{
-			Name:       name,
-			MaxAge:     window,
-			Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001},
-		}), labels: labels}
-		cd.cs.Store(h, c)
-		m.summary.Store(name, cd)
-		return c
-	}
-	c := vc.(*prometheusSummary)
-	return c
+	return mc.(*prometheusSummary)
 }
 
 func (m *prometheusMeter) Init(opts ...meter.Option) error {
@@ -256,97 +213,59 @@ func (m *prometheusMeter) Write(w io.Writer, opts ...meter.Option) error {
 	enc := expfmt.NewEncoder(w, expfmt.NewFormat(expfmt.TypeTextPlain))
 
 	m.counter.Range(func(k, v any) bool {
-		name := k.(string)
-		mf := &dto.MetricFamily{
-			Name: &name,
-			Type: dto.MetricType_GAUGE.Enum(),
-		}
-		v.(*counters).cs.Range(func(_, nv any) bool {
-			c := nv.(*prometheusCounter)
-			m := &dto.Metric{}
-			_ = c.c.Write(m)
-			fillMetric(m, c.labels)
-			mf.Metric = append(mf.Metric, m)
-			return true
-		})
-		mfs = append(mfs, mf)
-		return true
-	})
-
-	m.gauge.Range(func(k, v any) bool {
-		name := k.(string)
-		mf := &dto.MetricFamily{
-			Name: &name,
-			Type: dto.MetricType_GAUGE.Enum(),
-		}
-		v.(*gauges).cs.Range(func(_, nv any) bool {
-			c := nv.(*prometheusGauge)
-			m := &dto.Metric{}
-			_ = c.c.Write(m)
-			fillMetric(m, c.labels)
-			mf.Metric = append(mf.Metric, m)
-			return true
-		})
+		c := v.(*prometheusCounter)
+		mf := m.mfPool.Get()
+		mf.Name = &c.name
+		mf.Type = dto.MetricType_GAUGE.Enum()
+		mf.Metric = append(mf.Metric, c.c)
 		mfs = append(mfs, mf)
 		return true
 	})
 
 	m.floatCounter.Range(func(k, v any) bool {
-		name := k.(string)
-		mf := &dto.MetricFamily{
-			Name: &name,
-			Type: dto.MetricType_GAUGE.Enum(),
-		}
-		v.(*floatCounters).cs.Range(func(_, nv any) bool {
-			c := nv.(*prometheusFloatCounter)
-			m := &dto.Metric{}
-			_ = c.c.Write(m)
-			fillMetric(m, c.labels)
-			mf.Metric = append(mf.Metric, m)
-			return true
-		})
+		c := v.(*prometheusFloatCounter)
+		mf := m.mfPool.Get()
+		mf.Name = &c.name
+		mf.Type = dto.MetricType_GAUGE.Enum()
+		mf.Metric = append(mf.Metric, c.c)
+		mfs = append(mfs, mf)
+		return true
+	})
+
+	m.gauge.Range(func(k, v any) bool {
+		c := v.(*prometheusGauge)
+		mf := m.mfPool.Get()
+		mf.Name = &c.name
+		mf.Type = dto.MetricType_GAUGE.Enum()
+		mf.Metric = append(mf.Metric, c.c)
 		mfs = append(mfs, mf)
 		return true
 	})
 
 	m.histogram.Range(func(k, v any) bool {
-		name := k.(string)
-		mf := &dto.MetricFamily{
-			Name: &name,
-			Type: dto.MetricType_HISTOGRAM.Enum(),
-		}
-		v.(*histograms).cs.Range(func(_, nv any) bool {
-			c := nv.(*prometheusHistogram)
-			m := &dto.Metric{}
-			_ = c.c.Write(m)
-			fillMetric(m, c.labels)
-			mf.Metric = append(mf.Metric, m)
-			return true
-		})
+		c := v.(*prometheusHistogram)
+		mf := m.mfPool.Get()
+		mf.Name = &c.name
+		mf.Type = dto.MetricType_HISTOGRAM.Enum()
+		mf.Metric = append(mf.Metric, c.c)
 		mfs = append(mfs, mf)
 		return true
 	})
 
 	m.summary.Range(func(k, v any) bool {
-		name := k.(string)
-		mf := &dto.MetricFamily{
-			Name: &name,
-			Type: dto.MetricType_SUMMARY.Enum(),
-		}
-		v.(*summaries).cs.Range(func(_, nv any) bool {
-			c := nv.(*prometheusSummary)
-			m := &dto.Metric{}
-			_ = c.c.Write(m)
-			fillMetric(m, c.labels)
-			mf.Metric = append(mf.Metric, m)
-			return true
-		})
+		c := v.(*prometheusSummary)
+		mf := m.mfPool.Get()
+		mf.Name = &c.name
+		mf.Type = dto.MetricType_SUMMARY.Enum()
+		mf.Metric = append(mf.Metric, c.c)
 		mfs = append(mfs, mf)
 		return true
 	})
 
 	for _, mf := range mfs {
 		_ = enc.Encode(mf)
+		mf.Reset()
+		m.mfPool.Put(mf)
 	}
 
 	if closer, ok := enc.(io.Closer); ok {
@@ -390,124 +309,28 @@ func (m *prometheusMeter) Set(opts ...meter.Option) meter.Meter {
 	return nm
 }
 
-type prometheusCounter struct {
-	c      prometheus.Gauge
-	labels []string
-}
-
-func (c *prometheusCounter) Add(n int) {
-	c.c.Add(float64(n))
-}
-
-func (c *prometheusCounter) Dec() {
-	c.c.Dec()
-}
-
-func (c *prometheusCounter) Inc() {
-	c.c.Inc()
-}
-
-func (c *prometheusCounter) Get() uint64 {
-	m := &dto.Metric{}
-	if err := c.c.Write(m); err != nil {
-		return 0
-	}
-	return uint64(m.GetGauge().GetValue())
-}
-
-func (c *prometheusCounter) Set(n uint64) {
-	c.c.Set(float64(n))
-}
-
-type prometheusFloatCounter struct {
-	c      prometheus.Gauge
-	labels []string
-}
-
-func (c prometheusFloatCounter) Add(n float64) {
-	c.c.Add(n)
-}
-
-func (c prometheusFloatCounter) Get() float64 {
-	m := &dto.Metric{}
-	if err := c.c.Write(m); err != nil {
-		return 0
-	}
-	return m.GetGauge().GetValue()
-}
-
-func (c prometheusFloatCounter) Set(n float64) {
-	c.c.Set(n)
-}
-
-func (c prometheusFloatCounter) Sub(n float64) {
-	c.c.Add(-n)
-}
-
-type prometheusGauge struct {
-	c      prometheus.Gauge
-	labels []string
-}
-
-func (c prometheusGauge) Get() float64 {
-	m := &dto.Metric{}
-	if err := c.c.Write(m); err != nil {
-		return 0
-	}
-	return float64(m.GetGauge().GetValue())
-}
-
-type prometheusHistogram struct {
-	c      prometheus.Histogram
-	labels []string
-}
-
-func (c prometheusHistogram) Reset() {
-}
-
-func (c prometheusHistogram) Update(n float64) {
-	c.c.Observe(n)
-}
-
-func (c prometheusHistogram) UpdateDuration(n time.Time) {
-	c.c.Observe(time.Since(n).Seconds())
-}
-
-type prometheusSummary struct {
-	c      prometheus.Summary
-	labels []string
-}
-
-func (c prometheusSummary) Update(n float64) {
-	c.c.Observe(n)
-}
-
-func (c prometheusSummary) UpdateDuration(n time.Time) {
-	c.c.Observe(time.Since(n).Seconds())
-}
-
-func newHash(labels []string) uint64 {
-	labels = meter.BuildLabels(labels...)
-	h := fnv.New64a()
-	for _, l := range labels {
-		h.Write([]byte(l))
-	}
-	return h.Sum64()
-}
-
-func fillMetric(m *dto.Metric, labels []string) *dto.Metric {
-	var ok bool
-	seen := make(map[string]bool, len(labels)/2)
-	m.Label = make([]*dto.LabelPair, 0, len(labels)/2)
+func labelMetric(labels []string) []*dto.LabelPair {
+	dtoLabels := make([]*dto.LabelPair, 0, len(labels)/2)
 	for idx := 0; idx < len(labels); idx += 2 {
-		if _, ok = seen[labels[idx]]; ok {
-			continue
-		}
-		m.Label = append(m.Label, &dto.LabelPair{
+		dtoLabels = append(dtoLabels, &dto.LabelPair{
 			Name:  &(labels[idx]),
 			Value: &(labels[idx+1]),
 		})
-		seen[labels[idx]] = true
 	}
-	return m
+	return dtoLabels
+}
+
+func newHash(n string, l []string) uint64 {
+	h := uint64(14695981039346656037)
+	for i := 0; i < len(n); i++ {
+		h ^= uint64(n[i])
+		h *= 1099511628211
+	}
+	for _, s := range l {
+		for i := 0; i < len(s); i++ {
+			h ^= uint64(s[i])
+			h *= 1099511628211
+		}
+	}
+	return h
 }
