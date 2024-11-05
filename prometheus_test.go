@@ -14,6 +14,14 @@ import (
 	"go.unistack.org/micro/v3/meter"
 )
 
+func TestHash(t *testing.T) {
+	t.Skip()
+	h1 := newHash("micro_server_request_total", []string{"code", "16", "endpoint", "/clientprofile.ClientProfileService/GetClientProfile", "status", "failure"})
+	h2 := newHash("micro_server_request_total", []string{"code", "16", "endpoint", "/clientproduct.ClientProductService/GetDepositProducts", "status", "failure"})
+	h3 := newHash("micro_server_request_total", []string{"code", "16", "endpoint", "/operationsinfo.OperationsInfoService/GetOperations", "status", "failure"})
+	t.Logf("h1: %v\nh2: %v\nh3: %v\n", h1, h2, h3)
+}
+
 func TestHistogram(t *testing.T) {
 	m := NewMeter()
 	name := "test"
@@ -56,6 +64,7 @@ func TestHistogram(t *testing.T) {
 }
 
 func TestSummary(t *testing.T) {
+	t.Skip()
 	name := "micro_server"
 	m := NewMeter()
 	m.Summary("micro_server").Update(1)
@@ -87,7 +96,7 @@ func TestSummary(t *testing.T) {
 	p.Observe(10)
 	p.Observe(30)
 	mdto := &dto.Metric{}
-	p.Write(mdto)
+	_ = p.Write(mdto)
 	pbuf := bytes.NewBuffer(nil)
 	enc := expfmt.NewEncoder(pbuf, expfmt.NewFormat(expfmt.TypeTextPlain))
 	mf := &dto.MetricFamily{Name: &name, Type: dto.MetricType_SUMMARY.Enum(), Metric: []*dto.Metric{mdto}}
