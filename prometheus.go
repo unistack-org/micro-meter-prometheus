@@ -328,11 +328,13 @@ func (m *prometheusMeter) Set(opts ...meter.Option) meter.Meter {
 }
 
 func labelMetric(labels []string) []*dto.LabelPair {
-	dtoLabels := make([]*dto.LabelPair, 0, len(labels)/2)
-	for idx := 0; idx < len(labels); idx += 2 {
+	nl := make([]string, len(labels))
+	copy(nl, labels)
+	dtoLabels := make([]*dto.LabelPair, 0, len(nl)/2)
+	for idx := 0; idx < len(nl); idx += 2 {
 		dtoLabels = append(dtoLabels, &dto.LabelPair{
-			Name:  &(labels[idx]),
-			Value: &(labels[idx+1]),
+			Name:  &(nl[idx]),
+			Value: &(nl[idx+1]),
 		})
 	}
 	return dtoLabels
