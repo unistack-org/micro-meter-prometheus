@@ -8,17 +8,19 @@ import (
 )
 
 type prometheusSummary struct {
-	name string
-	c    *dto.Metric
+	name        string
+	c           *dto.Metric
+	sampleCount uint64
+	SampleSum   float64
 }
 
-func (c prometheusSummary) Update(n float64) {
-	atomic.AddUint64(c.c.Summary.SampleCount, 1)
-	addFloat64(c.c.Summary.SampleSum, n)
+func (c *prometheusSummary) Update(n float64) {
+	atomic.AddUint64(&(c.sampleCount), 1)
+	addFloat64(&(c.SampleSum), n)
 }
 
-func (c prometheusSummary) UpdateDuration(n time.Time) {
-	x := time.Since(n).Seconds()
-	atomic.AddUint64(c.c.Summary.SampleCount, 1)
-	addFloat64(c.c.Summary.SampleSum, x)
+func (c *prometheusSummary) UpdateDuration(t time.Time) {
+	n := time.Since(t).Seconds()
+	atomic.AddUint64(&(c.sampleCount), 1)
+	addFloat64(&(c.SampleSum), n)
 }

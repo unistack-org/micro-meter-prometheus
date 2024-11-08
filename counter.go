@@ -11,55 +11,57 @@ import (
 type prometheusCounter struct {
 	name string
 	c    *dto.Metric
+	n    float64
 }
 
 func (c *prometheusCounter) Add(n int) {
-	addFloat64(c.c.Gauge.Value, float64(n))
+	addFloat64(&(c.n), float64(n))
 }
 
 func (c *prometheusCounter) Dec() {
-	addFloat64(c.c.Gauge.Value, float64(-1))
+	addFloat64(&(c.n), float64(-1))
 }
 
 func (c *prometheusCounter) Inc() {
-	addFloat64(c.c.Gauge.Value, float64(1))
+	addFloat64(&(c.n), float64(1))
 }
 
 func (c *prometheusCounter) Get() uint64 {
-	return uint64(getFloat64(c.c.Gauge.Value))
+	return uint64(getFloat64(&(c.n)))
 }
 
 func (c *prometheusCounter) Set(n uint64) {
-	setFloat64(c.c.Gauge.Value, math.Float64frombits(n))
+	setFloat64(&(c.n), math.Float64frombits(n))
 }
 
 type prometheusFloatCounter struct {
 	name string
 	c    *dto.Metric
+	n    float64
 }
 
 func (c *prometheusFloatCounter) Add(n float64) {
-	addFloat64(c.c.Gauge.Value, n)
+	addFloat64(&(c.n), n)
 }
 
 func (c *prometheusFloatCounter) Dec() {
-	addFloat64(c.c.Gauge.Value, float64(-1))
+	addFloat64(&(c.n), float64(-1))
 }
 
 func (c *prometheusFloatCounter) Inc() {
-	addFloat64(c.c.Gauge.Value, float64(1))
+	addFloat64(&(c.n), float64(1))
 }
 
 func (c *prometheusFloatCounter) Get() float64 {
-	return getFloat64(c.c.Gauge.Value)
+	return getFloat64(&(c.n))
 }
 
 func (c *prometheusFloatCounter) Set(n float64) {
-	setFloat64(c.c.Gauge.Value, n)
+	setFloat64(&(c.n), n)
 }
 
 func (c *prometheusFloatCounter) Sub(n float64) {
-	addFloat64(c.c.Gauge.Value, -n)
+	addFloat64(&(c.n), -n)
 }
 
 func setFloat64(_addr *float64, value float64) float64 {

@@ -15,11 +15,25 @@ import (
 )
 
 func TestHash(t *testing.T) {
-	t.Skip()
-	h1 := newHash("micro_server_request_total", []string{"code", "16", "endpoint", "/clientprofile.ClientProfileService/GetClientProfile", "status", "failure"})
-	h2 := newHash("micro_server_request_total", []string{"code", "16", "endpoint", "/clientproduct.ClientProductService/GetDepositProducts", "status", "failure"})
-	h3 := newHash("micro_server_request_total", []string{"code", "16", "endpoint", "/operationsinfo.OperationsInfoService/GetOperations", "status", "failure"})
-	t.Logf("h1: %v\nh2: %v\nh3: %v\n", h1, h2, h3)
+	m := NewMeter() // meter.Labels("test_key", "test_val"))
+
+	buf := bytes.NewBuffer(nil)
+
+	for i := 0; i < 100000; i++ {
+		go func() {
+			m.Counter("micro_server_request_total", "code", "16",
+				"endpoint", "/clientprofile.ClientProfileService/GetClientProfile",
+				"status", "failure").Inc()
+			m.Counter("micro_server_request_total", "code", "16",
+				"endpoint", "/clientproduct.ClientProductService/GetDepositProducts",
+				"status", "failure").Inc()
+			m.Counter("micro_server_request_total", "code", "16",
+				"endpoint", "/operationsinfo.OperationsInfoService/GetOperations",
+				"status", "failure").Inc()
+		}()
+	}
+	_ = m.Write(buf)
+	t.Logf("h1: %s\n", buf.Bytes())
 }
 
 func TestHistogram(t *testing.T) {

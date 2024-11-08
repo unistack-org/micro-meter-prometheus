@@ -5,6 +5,7 @@ import (
 	"io"
 	"regexp"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -53,82 +54,83 @@ func (m *prometheusMeter) Counter(name string, labels ...string) meter.Counter {
 	clabels := meter.BuildLabels(append(m.opts.Labels, labels...)...)
 	h := newHash(name, clabels)
 	m.mu.Lock()
-	mc, ok := m.counter[h]
+	c, ok := m.counter[h]
+	// fmt.Printf("counter name %s hash %v labels %v\n", name, h, labels)
 	m.mu.Unlock()
 	if !ok {
-		var v float64
-		mc = &prometheusCounter{
+		var n float64
+		c = &prometheusCounter{
 			name: name,
 			c: &dto.Metric{
-				Gauge: &dto.Gauge{Value: &v},
+				Gauge: &dto.Gauge{Value: &n},
 				Label: labelMetric(clabels),
 			},
 		}
 		m.mu.Lock()
-		m.counter[h] = mc
+		m.counter[h] = c
 		m.mu.Unlock()
 	}
-	return mc
+	return c
 }
 
 func (m *prometheusMeter) FloatCounter(name string, labels ...string) meter.FloatCounter {
 	clabels := meter.BuildLabels(append(m.opts.Labels, labels...)...)
 	h := newHash(name, clabels)
 	m.mu.Lock()
-	mc, ok := m.floatCounter[h]
+	c, ok := m.floatCounter[h]
 	m.mu.Unlock()
 	if !ok {
-		var v float64
-		mc = &prometheusFloatCounter{
+		var n float64
+		c = &prometheusFloatCounter{
 			name: name,
 			c: &dto.Metric{
-				Gauge: &dto.Gauge{Value: &v},
+				Gauge: &dto.Gauge{Value: &n},
 				Label: labelMetric(clabels),
 			},
 		}
 		m.mu.Lock()
-		m.floatCounter[h] = mc
+		m.floatCounter[h] = c
 		m.mu.Unlock()
 	}
-	return mc
+	return c
 }
 
 func (m *prometheusMeter) Gauge(name string, fn func() float64, labels ...string) meter.Gauge {
 	clabels := meter.BuildLabels(append(m.opts.Labels, labels...)...)
 	h := newHash(name, clabels)
 	m.mu.Lock()
-	mc, ok := m.gauge[h]
+	c, ok := m.gauge[h]
 	m.mu.Unlock()
 	if !ok {
-		var v float64
-		mc = &prometheusGauge{
+		var n float64
+		c = &prometheusGauge{
 			name: name,
 			c: &dto.Metric{
-				Gauge: &dto.Gauge{Value: &v},
+				Gauge: &dto.Gauge{Value: &n},
 				Label: labelMetric(clabels),
 			},
 		}
 		m.mu.Lock()
-		m.gauge[h] = mc
+		m.gauge[h] = c
 		m.mu.Unlock()
 	}
-	return mc
+	return c
 }
 
 func (m *prometheusMeter) Histogram(name string, labels ...string) meter.Histogram {
 	clabels := meter.BuildLabels(append(m.opts.Labels, labels...)...)
 	h := newHash(name, clabels)
 	m.mu.Lock()
-	mc, ok := m.histogram[h]
+	c, ok := m.histogram[h]
 	m.mu.Unlock()
 	if !ok {
-		var c uint64
+		var n uint64
 		var s float64
 		buckets := make([]float64, len(prometheus.DefBuckets))
 		copy(buckets, prometheus.DefBuckets)
 		mdto := &dto.Metric{
 			Histogram: &dto.Histogram{
-				SampleCount:      &c,
+				SampleCount:      &n,
 				SampleSum:        &s,
 				CreatedTimestamp: timestamppb.Now(),
 				Bucket:           make([]*dto.Bucket, len(buckets)),
@@ -139,31 +141,31 @@ func (m *prometheusMeter) Histogram(name string, labels ...string) meter.Histogr
 			var cc uint64
 			mdto.Histogram.Bucket[idx] = &dto.Bucket{CumulativeCount: &cc, UpperBound: &b}
 		}
-		mc = &prometheusHistogram{
+		c = &prometheusHistogram{
 			name: name,
 			c:    mdto,
 		}
 		m.mu.Lock()
-		m.histogram[h] = mc
+		m.histogram[h] = c
 		m.mu.Unlock()
 	}
-	return mc
+	return c
 }
 
 func (m *prometheusMeter) Summary(name string, labels ...string) meter.Summary {
 	clabels := meter.BuildLabels(append(m.opts.Labels, labels...)...)
 	h := newHash(name, clabels)
 	m.mu.Lock()
-	mc, ok := m.summary[h]
+	c, ok := m.summary[h]
 	m.mu.Unlock()
 	if !ok {
-		var c uint64
+		var n uint64
 		var s float64
-		mc = &prometheusSummary{
+		c = &prometheusSummary{
 			name: name,
 			c: &dto.Metric{
 				Summary: &dto.Summary{
-					SampleCount:      &c,
+					SampleCount:      &n,
 					SampleSum:        &s,
 					CreatedTimestamp: timestamppb.Now(),
 				},
@@ -171,36 +173,36 @@ func (m *prometheusMeter) Summary(name string, labels ...string) meter.Summary {
 			},
 		}
 		m.mu.Lock()
-		m.summary[h] = mc
+		m.summary[h] = c
 		m.mu.Unlock()
 	}
-	return mc
+	return c
 }
 
 func (m *prometheusMeter) SummaryExt(name string, window time.Duration, quantiles []float64, labels ...string) meter.Summary {
 	clabels := meter.BuildLabels(append(m.opts.Labels, labels...)...)
 	h := newHash(name, clabels)
 	m.mu.Lock()
-	mc, ok := m.summary[h]
+	c, ok := m.summary[h]
 	m.mu.Lock()
 	if !ok {
-		var c uint64
+		var n uint64
 		var s float64
-		mc = &prometheusSummary{
+		c = &prometheusSummary{
 			name: name,
 			c: &dto.Metric{
 				Summary: &dto.Summary{
-					SampleCount: &c,
+					SampleCount: &n,
 					SampleSum:   &s,
 				},
 				Label: labelMetric(clabels),
 			},
 		}
 		m.mu.Lock()
-		m.summary[h] = mc
+		m.summary[h] = c
 		m.mu.Unlock()
 	}
-	return mc
+	return c
 }
 
 func (m *prometheusMeter) Init(opts ...meter.Option) error {
@@ -238,27 +240,33 @@ func (m *prometheusMeter) Write(w io.Writer, opts ...meter.Option) error {
 
 	m.mu.Lock()
 
-	for _, c := range m.counter {
+	for _, mc := range m.counter {
 		mf := m.mfPool.Get()
-		mf.Name = &c.name
+		mf.Name = &mc.name
 		mf.Type = dto.MetricType_GAUGE.Enum()
-		mf.Metric = append(mf.Metric, c.c)
+		n := getFloat64(&(mc.n))
+		mc.c.Gauge.Value = &n
+		mf.Metric = append(mf.Metric, mc.c)
 		mfs = append(mfs, mf)
 	}
 
-	for _, c := range m.floatCounter {
+	for _, mc := range m.floatCounter {
 		mf := m.mfPool.Get()
-		mf.Name = &c.name
+		mf.Name = &mc.name
 		mf.Type = dto.MetricType_GAUGE.Enum()
-		mf.Metric = append(mf.Metric, c.c)
+		n := getFloat64(&(mc.n))
+		mc.c.Gauge.Value = &n
+		mf.Metric = append(mf.Metric, mc.c)
 		mfs = append(mfs, mf)
 	}
 
-	for _, c := range m.gauge {
+	for _, mc := range m.gauge {
 		mf := m.mfPool.Get()
-		mf.Name = &c.name
+		mf.Name = &mc.name
 		mf.Type = dto.MetricType_GAUGE.Enum()
-		mf.Metric = append(mf.Metric, c.c)
+		n := getFloat64(&(mc.n))
+		mc.c.Gauge.Value = &n
+		mf.Metric = append(mf.Metric, mc.c)
 		mfs = append(mfs, mf)
 	}
 
@@ -270,11 +278,15 @@ func (m *prometheusMeter) Write(w io.Writer, opts ...meter.Option) error {
 		mfs = append(mfs, mf)
 	}
 
-	for _, c := range m.summary {
+	for _, mc := range m.summary {
 		mf := m.mfPool.Get()
-		mf.Name = &c.name
+		mf.Name = &mc.name
 		mf.Type = dto.MetricType_SUMMARY.Enum()
-		mf.Metric = append(mf.Metric, c.c)
+		sc := atomic.LoadUint64(&(mc.sampleCount))
+		mc.c.Summary.SampleCount = &sc
+		ss := getFloat64(&(mc.SampleSum))
+		mc.c.Summary.SampleSum = &ss
+		mf.Metric = append(mf.Metric, mc.c)
 		mfs = append(mfs, mf)
 	}
 
