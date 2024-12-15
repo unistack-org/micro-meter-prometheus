@@ -65,7 +65,7 @@ func TestHistogram(t *testing.T) {
 	p.Observe(10)
 	p.Observe(30)
 	mdto := &dto.Metric{}
-	p.Write(mdto)
+	_ = p.Write(mdto)
 	pbuf := bytes.NewBuffer(nil)
 	enc := expfmt.NewEncoder(pbuf, expfmt.NewFormat(expfmt.TypeTextPlain))
 	mf := &dto.MetricFamily{Name: &name, Type: dto.MetricType_HISTOGRAM.Enum(), Metric: []*dto.Metric{mdto}}
