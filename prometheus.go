@@ -49,10 +49,12 @@ type floatCounters struct {
 	cs map[uint64]*prometheusFloatCounter
 }
 
+/*
 func newFloat64(v float64) *float64 {
 	nv := v
 	return &nv
 }
+*/
 
 func newString(v string) *string {
 	nv := v
@@ -268,16 +270,22 @@ func (m *prometheusMeter) SummaryExt(name string, window time.Duration, quantile
 }
 
 func (m *prometheusMeter) Init(opts ...options.Option) error {
+	var err error
 	for _, o := range opts {
-		o(&m.opts)
+		if err = o(&m.opts); err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
 func (m *prometheusMeter) Write(w io.Writer, opts ...options.Option) error {
+	var err error
 	options := m.opts
 	for _, o := range opts {
-		o(&options)
+		if err = o(&options); err != nil {
+			return err
+		}
 	}
 
 	if options.WriteProcessMetrics || options.WriteFDMetrics {
@@ -388,7 +396,7 @@ func (m *prometheusMeter) Write(w io.Writer, opts ...options.Option) error {
 func (m *prometheusMeter) Clone(opts ...options.Option) meter.Meter {
 	options := m.opts
 	for _, o := range opts {
-		o(&options)
+		_ = o(&options)
 	}
 
 	return &prometheusMeter{
@@ -413,7 +421,7 @@ func (m *prometheusMeter) String() string {
 func (m *prometheusMeter) Set(opts ...options.Option) meter.Meter {
 	nm := &prometheusMeter{opts: m.opts}
 	for _, o := range opts {
-		o(&nm.opts)
+		_ = o(&nm.opts)
 	}
 	nm.set = prometheus.NewRegistry()
 	return nm
