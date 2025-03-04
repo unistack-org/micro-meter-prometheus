@@ -2,6 +2,7 @@ package prometheus
 
 import (
 	"bytes"
+	"fmt"
 	"testing"
 
 	"go.unistack.org/micro/v4/meter"
@@ -47,5 +48,29 @@ func TestMultiple(t *testing.T) {
 	if !bytes.Contains(buf.Bytes(), []byte(`micro_server{endpoint="ep1",path="/path1"} 2`)) {
 		// t.Fatal("XXXX")
 		t.Fatalf("invalid metrics output: %s", buf.Bytes())
+	}
+}
+
+func TestCounterSet(t *testing.T) {
+	m := NewMeter()
+
+	value := uint64(42)
+
+	m.Counter("forte_accounts_total", "channel_code", "crm").Set(value)
+
+	fmt.Println(uint64(float64(value)))
+
+	buf := bytes.NewBuffer(nil)
+
+	_ = m.Write(buf)
+
+	output := buf.String()
+
+	fmt.Println(output)
+
+	expectedOutput := fmt.Sprintf(`%s{channel_code="crm"} %d`, "forte_accounts_total", value)
+
+	if !bytes.Contains(buf.Bytes(), []byte(expectedOutput)) {
+		t.Fatalf("invalid metrics output: expected %q, got %q", expectedOutput, output)
 	}
 }
