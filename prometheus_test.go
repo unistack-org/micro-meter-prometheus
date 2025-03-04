@@ -8,6 +8,32 @@ import (
 	"go.unistack.org/micro/v3/meter"
 )
 
+func TestBuildMetric(t *testing.T) {
+	m := NewMeter(meter.Labels("service_name", "test", "service_version", "0.0.0.1"))
+	if err := m.Init(); err != nil {
+		t.Fatal(err)
+	}
+
+	name := m.buildMetric("micro_server")
+	if name != `micro_server{service_name="test",service_version="0.0.0.1"}` {
+		t.Fatal("invalid name")
+	}
+}
+
+func TestWithDefaultLabels(t *testing.T) {
+	m := NewMeter(meter.Labels("service_name", "test", "service_version", "0.0.0.1"))
+	if err := m.Init(); err != nil {
+		t.Fatal(err)
+	}
+	m.Counter("micro_server", "endpoint", "ep3", "path", "/path3", "status", "success").Inc()
+
+	buf := bytes.NewBuffer(nil)
+	_ = m.Write(buf, meter.WriteProcessMetrics(false), meter.WriteFDMetrics(false))
+	if !bytes.Contains(buf.Bytes(), []byte(`micro_server{service_name="test",service_version="0.0.0.1",endpoint="ep3",path="/path3",status="success"} 1`)) {
+		t.Fatalf("invalid metrics output: %s", buf.Bytes())
+	}
+}
+
 func TestStd(t *testing.T) {
 	m := NewMeter(meter.WriteProcessMetrics(true), meter.WriteFDMetrics(true))
 	if err := m.Init(); err != nil {
@@ -46,7 +72,6 @@ func TestMultiple(t *testing.T) {
 	buf := bytes.NewBuffer(nil)
 	_ = m.Write(buf, meter.WriteProcessMetrics(false), meter.WriteFDMetrics(false))
 	if !bytes.Contains(buf.Bytes(), []byte(`micro_server{endpoint="ep1",path="/path1"} 2`)) {
-		// t.Fatal("XXXX")
 		t.Fatalf("invalid metrics output: %s", buf.Bytes())
 	}
 }
@@ -58,15 +83,11 @@ func TestCounterSet(t *testing.T) {
 
 	m.Counter("forte_accounts_total", "channel_code", "crm").Set(value)
 
-	fmt.Println(uint64(float64(value)))
-
 	buf := bytes.NewBuffer(nil)
 
 	_ = m.Write(buf)
 
 	output := buf.String()
-
-	fmt.Println(output)
 
 	expectedOutput := fmt.Sprintf(`%s{channel_code="crm"} %d`, "forte_accounts_total", value)
 
