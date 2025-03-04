@@ -13,7 +13,6 @@ import (
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 	"go.unistack.org/micro/v4/meter"
-	"go.unistack.org/micro/v4/options"
 )
 
 var _ meter.Meter = &prometheusMeter{}
@@ -61,7 +60,7 @@ func newString(v string) *string {
 	return &nv
 }
 
-func NewMeter(opts ...options.Option) *prometheusMeter {
+func NewMeter(opts ...meter.Option) *prometheusMeter {
 	return &prometheusMeter{
 		set:          prometheus.NewRegistry(), // prometheus.DefaultRegisterer,
 		opts:         meter.NewOptions(opts...),
@@ -74,10 +73,6 @@ func NewMeter(opts ...options.Option) *prometheusMeter {
 }
 
 func (m *prometheusMeter) buildMetric(name string, labels ...string) string {
-	if len(m.opts.MetricPrefix) > 0 {
-		name = m.opts.MetricPrefix + name
-	}
-
 	nl := len(m.opts.Labels) + len(labels)
 	if nl == 0 {
 		return name
@@ -87,36 +82,7 @@ func (m *prometheusMeter) buildMetric(name string, labels ...string) string {
 	nlabels = append(nlabels, m.opts.Labels...)
 	nlabels = append(nlabels, labels...)
 
-	if len(m.opts.LabelPrefix) == 0 {
-		return meter.BuildName(name, nlabels...)
-	}
-
-	for idx := 0; idx < nl; idx += 2 {
-		nlabels[idx] = m.opts.LabelPrefix + nlabels[idx]
-	}
 	return meter.BuildName(name, nlabels...)
-}
-
-func (m *prometheusMeter) buildName(name string) string {
-	if len(m.opts.MetricPrefix) > 0 {
-		name = m.opts.MetricPrefix + name
-	}
-	return name
-}
-
-func (m *prometheusMeter) buildLabels(labels ...string) []string {
-	nl := len(labels)
-	if nl == 0 {
-		return nil
-	}
-
-	nlabels := make([]string, 0, nl)
-
-	for idx := 0; idx < nl; idx += 2 {
-		nlabels = append(nlabels, m.opts.LabelPrefix+labels[idx])
-		nlabels = append(nlabels, labels[idx+1])
-	}
-	return nlabels
 }
 
 func (m *prometheusMeter) Name() string {
@@ -126,8 +92,8 @@ func (m *prometheusMeter) Name() string {
 func (m *prometheusMeter) Counter(name string, labels ...string) meter.Counter {
 	m.Lock()
 	defer m.Unlock()
-	nm := m.buildName(name)
-	labels = m.buildLabels(append(m.opts.Labels, labels...)...)
+	nm := m.buildMetric(name)
+	labels = append(m.opts.Labels, labels...)
 	cd, ok := m.counter[nm]
 	h := newHash(labels)
 	if !ok {
@@ -149,8 +115,8 @@ func (m *prometheusMeter) Counter(name string, labels ...string) meter.Counter {
 func (m *prometheusMeter) FloatCounter(name string, labels ...string) meter.FloatCounter {
 	m.Lock()
 	defer m.Unlock()
-	nm := m.buildName(name)
-	labels = m.buildLabels(append(m.opts.Labels, labels...)...)
+	nm := m.buildMetric(name)
+	labels = append(m.opts.Labels, labels...)
 	cd, ok := m.floatCounter[nm]
 	h := newHash(labels)
 	if !ok {
@@ -172,8 +138,8 @@ func (m *prometheusMeter) FloatCounter(name string, labels ...string) meter.Floa
 func (m *prometheusMeter) Gauge(name string, fn func() float64, labels ...string) meter.Gauge {
 	m.Lock()
 	defer m.Unlock()
-	nm := m.buildName(name)
-	labels = m.buildLabels(append(m.opts.Labels, labels...)...)
+	nm := m.buildMetric(name)
+	labels = append(m.opts.Labels, labels...)
 	cd, ok := m.gauge[nm]
 	h := newHash(labels)
 	if !ok {
@@ -195,8 +161,8 @@ func (m *prometheusMeter) Gauge(name string, fn func() float64, labels ...string
 func (m *prometheusMeter) Histogram(name string, labels ...string) meter.Histogram {
 	m.Lock()
 	defer m.Unlock()
-	nm := m.buildName(name)
-	labels = m.buildLabels(append(m.opts.Labels, labels...)...)
+	nm := m.buildMetric(name)
+	labels = append(m.opts.Labels, labels...)
 	cd, ok := m.histogram[nm]
 	h := newHash(labels)
 	if !ok {
@@ -218,8 +184,8 @@ func (m *prometheusMeter) Histogram(name string, labels ...string) meter.Histogr
 func (m *prometheusMeter) Summary(name string, labels ...string) meter.Summary {
 	m.Lock()
 	defer m.Unlock()
-	nm := m.buildName(name)
-	labels = m.buildLabels(append(m.opts.Labels, labels...)...)
+	nm := m.buildMetric(name)
+	labels = append(m.opts.Labels, labels...)
 	cd, ok := m.summary[nm]
 	h := newHash(labels)
 	if !ok {
@@ -241,8 +207,8 @@ func (m *prometheusMeter) Summary(name string, labels ...string) meter.Summary {
 func (m *prometheusMeter) SummaryExt(name string, window time.Duration, quantiles []float64, labels ...string) meter.Summary {
 	m.Lock()
 	defer m.Unlock()
-	nm := m.buildName(name)
-	labels = m.buildLabels(append(m.opts.Labels, labels...)...)
+	nm := m.buildMetric(name)
+	labels = append(m.opts.Labels, labels...)
 	cd, ok := m.summary[nm]
 	h := newHash(labels)
 	if !ok {
@@ -269,23 +235,17 @@ func (m *prometheusMeter) SummaryExt(name string, window time.Duration, quantile
 	return c
 }
 
-func (m *prometheusMeter) Init(opts ...options.Option) error {
-	var err error
+func (m *prometheusMeter) Init(opts ...meter.Option) error {
 	for _, o := range opts {
-		if err = o(&m.opts); err != nil {
-			return err
-		}
+		o(&m.opts)
 	}
 	return nil
 }
 
-func (m *prometheusMeter) Write(w io.Writer, opts ...options.Option) error {
-	var err error
+func (m *prometheusMeter) Write(w io.Writer, opts ...meter.Option) error {
 	options := m.opts
 	for _, o := range opts {
-		if err = o(&options); err != nil {
-			return err
-		}
+		o(&options)
 	}
 
 	if options.WriteProcessMetrics || options.WriteFDMetrics {
@@ -393,10 +353,10 @@ func (m *prometheusMeter) Write(w io.Writer, opts ...options.Option) error {
 	return nil
 }
 
-func (m *prometheusMeter) Clone(opts ...options.Option) meter.Meter {
+func (m *prometheusMeter) Clone(opts ...meter.Option) meter.Meter {
 	options := m.opts
 	for _, o := range opts {
-		_ = o(&options)
+		o(&options)
 	}
 
 	return &prometheusMeter{
@@ -418,10 +378,10 @@ func (m *prometheusMeter) String() string {
 	return "prometheus"
 }
 
-func (m *prometheusMeter) Set(opts ...options.Option) meter.Meter {
+func (m *prometheusMeter) Set(opts ...meter.Option) meter.Meter {
 	nm := &prometheusMeter{opts: m.opts}
 	for _, o := range opts {
-		_ = o(&nm.opts)
+		o(&nm.opts)
 	}
 	nm.set = prometheus.NewRegistry()
 	return nm
@@ -524,7 +484,6 @@ func (c prometheusSummary) UpdateDuration(n time.Time) {
 }
 
 func newHash(labels []string) uint64 {
-	labels = meter.BuildLabels(labels...)
 	h := fnv.New64a()
 	for _, l := range labels {
 		h.Write([]byte(l))
