@@ -1,8 +1,7 @@
-module go.unistack.org/micro-meter-prometheus/v4
+module go.unistack.org/micro-meter-prometheus/v3
 
 go 1.22.0
 
-toolchain go1.24.0
 
 require (
 	github.com/prometheus/client_golang v1.21.0
