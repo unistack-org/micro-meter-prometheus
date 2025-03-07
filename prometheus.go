@@ -25,7 +25,7 @@ type prometheusMeter struct {
 	gauge        map[string]*gauges
 	histogram    map[string]*histograms
 	summary      map[string]*summaries
-	sync.Mutex
+	mu           *sync.Mutex
 }
 
 type counters struct {
@@ -69,6 +69,7 @@ func NewMeter(opts ...meter.Option) *prometheusMeter {
 		gauge:        make(map[string]*gauges),
 		histogram:    make(map[string]*histograms),
 		summary:      make(map[string]*summaries),
+		mu:           &sync.Mutex{},
 	}
 }
 
@@ -90,8 +91,8 @@ func (m *prometheusMeter) Name() string {
 }
 
 func (m *prometheusMeter) Counter(name string, labels ...string) meter.Counter {
-	m.Lock()
-	defer m.Unlock()
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	nm := m.buildMetric(name)
 	labels = append(m.opts.Labels, labels...)
 	cd, ok := m.counter[nm]
@@ -113,8 +114,8 @@ func (m *prometheusMeter) Counter(name string, labels ...string) meter.Counter {
 }
 
 func (m *prometheusMeter) FloatCounter(name string, labels ...string) meter.FloatCounter {
-	m.Lock()
-	defer m.Unlock()
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	nm := m.buildMetric(name)
 	labels = append(m.opts.Labels, labels...)
 	cd, ok := m.floatCounter[nm]
@@ -136,8 +137,8 @@ func (m *prometheusMeter) FloatCounter(name string, labels ...string) meter.Floa
 }
 
 func (m *prometheusMeter) Gauge(name string, fn func() float64, labels ...string) meter.Gauge {
-	m.Lock()
-	defer m.Unlock()
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	nm := m.buildMetric(name)
 	labels = append(m.opts.Labels, labels...)
 	cd, ok := m.gauge[nm]
@@ -159,8 +160,8 @@ func (m *prometheusMeter) Gauge(name string, fn func() float64, labels ...string
 }
 
 func (m *prometheusMeter) Histogram(name string, labels ...string) meter.Histogram {
-	m.Lock()
-	defer m.Unlock()
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	nm := m.buildMetric(name)
 	labels = append(m.opts.Labels, labels...)
 	cd, ok := m.histogram[nm]
@@ -182,8 +183,8 @@ func (m *prometheusMeter) Histogram(name string, labels ...string) meter.Histogr
 }
 
 func (m *prometheusMeter) Summary(name string, labels ...string) meter.Summary {
-	m.Lock()
-	defer m.Unlock()
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	nm := m.buildMetric(name)
 	labels = append(m.opts.Labels, labels...)
 	cd, ok := m.summary[nm]
@@ -205,8 +206,8 @@ func (m *prometheusMeter) Summary(name string, labels ...string) meter.Summary {
 }
 
 func (m *prometheusMeter) SummaryExt(name string, window time.Duration, quantiles []float64, labels ...string) meter.Summary {
-	m.Lock()
-	defer m.Unlock()
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	nm := m.buildMetric(name)
 	labels = append(m.opts.Labels, labels...)
 	cd, ok := m.summary[nm]
@@ -266,6 +267,8 @@ func (m *prometheusMeter) Write(w io.Writer, opts ...meter.Option) error {
 	}
 
 	enc := expfmt.NewEncoder(w, expfmt.NewFormat(expfmt.TypeTextPlain))
+
+	m.mu.Lock()
 
 	for name, metrics := range m.counter {
 		mf := &dto.MetricFamily{
@@ -342,6 +345,8 @@ func (m *prometheusMeter) Write(w io.Writer, opts ...meter.Option) error {
 		mfs = append(mfs, mf)
 	}
 
+	m.mu.Unlock()
+
 	for _, mf := range mfs {
 		_ = enc.Encode(mf)
 	}
@@ -360,6 +365,7 @@ func (m *prometheusMeter) Clone(opts ...meter.Option) meter.Meter {
 	}
 
 	return &prometheusMeter{
+		mu:           m.mu,
 		set:          m.set,
 		opts:         options,
 		floatCounter: m.floatCounter,
