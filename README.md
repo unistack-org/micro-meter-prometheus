@@ -1,2 +1,2 @@
 # micro-meter-prometheus
-![Coverage](https://img.shields.io/badge/Coverage-36.6%25-yellow)
+![Coverage](https://img.shields.io/badge/Coverage-33.0%25-yellow)
