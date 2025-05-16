@@ -5,6 +5,7 @@ import (
 	"hash/fnv"
 	"io"
 	"regexp"
+	"strings"
 	"sync"
 	"time"
 
@@ -58,6 +59,15 @@ func newFloat64(v float64) *float64 {
 func newString(v string) *string {
 	nv := v
 	return &nv
+}
+
+func newName(name string) *string {
+	idx := strings.Index(name, "{")
+	if idx <= 0 {
+		return newString(name)
+	}
+
+	return newString(name[:idx])
 }
 
 func NewMeter(opts ...meter.Option) *prometheusMeter {
@@ -272,7 +282,7 @@ func (m *prometheusMeter) Write(w io.Writer, opts ...meter.Option) error {
 
 	for name, metrics := range m.counter {
 		mf := &dto.MetricFamily{
-			Name:   newString(name),
+			Name:   newName(name),
 			Type:   dto.MetricType_GAUGE.Enum(),
 			Metric: make([]*dto.Metric, 0, len(metrics.cs)),
 		}
@@ -287,7 +297,7 @@ func (m *prometheusMeter) Write(w io.Writer, opts ...meter.Option) error {
 
 	for name, metrics := range m.gauge {
 		mf := &dto.MetricFamily{
-			Name:   newString(name),
+			Name:   newName(name),
 			Type:   dto.MetricType_GAUGE.Enum(),
 			Metric: make([]*dto.Metric, 0, len(metrics.cs)),
 		}
@@ -302,7 +312,7 @@ func (m *prometheusMeter) Write(w io.Writer, opts ...meter.Option) error {
 
 	for name, metrics := range m.floatCounter {
 		mf := &dto.MetricFamily{
-			Name:   newString(name),
+			Name:   newName(name),
 			Type:   dto.MetricType_GAUGE.Enum(),
 			Metric: make([]*dto.Metric, 0, len(metrics.cs)),
 		}
@@ -317,7 +327,7 @@ func (m *prometheusMeter) Write(w io.Writer, opts ...meter.Option) error {
 
 	for name, metrics := range m.histogram {
 		mf := &dto.MetricFamily{
-			Name:   newString(name),
+			Name:   newName(name),
 			Type:   dto.MetricType_HISTOGRAM.Enum(),
 			Metric: make([]*dto.Metric, 0, len(metrics.cs)),
 		}
@@ -332,7 +342,7 @@ func (m *prometheusMeter) Write(w io.Writer, opts ...meter.Option) error {
 
 	for name, metrics := range m.summary {
 		mf := &dto.MetricFamily{
-			Name:   newString(name),
+			Name:   newName(name),
 			Type:   dto.MetricType_SUMMARY.Enum(),
 			Metric: make([]*dto.Metric, 0, len(metrics.cs)),
 		}
